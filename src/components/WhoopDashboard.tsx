@@ -290,26 +290,36 @@ export default function WhoopDashboard() {
     []
   );
 
-  /** Player stats filtered to a given day window (for reports) */
+  /** Player stats for a source window.
+   *  fullHistory is passed separately so HRV dots always have 5+ weeks of data
+   *  regardless of the report window length.
+   */
   const buildPlayerStats = useCallback(
-    (source: WhoopRecord[]): PlayerStats[] => {
+    (source: WhoopRecord[], fullHistory: WhoopRecord[]): PlayerStats[] => {
+      // Window stats (averages, daysWithData) come from `source`
       const map: Record<string, {
         player: string; sessions: number;
         Recovery: number[]; Strain: number[]; HRV: number[]; Sleep: number[];
-        allRecords: WhoopRecord[];
+        windowRecords: WhoopRecord[];
       }> = {};
 
       source.forEach((record) => {
         if (!map[record.player]) {
-          map[record.player] = { player: record.player, sessions: 0, Recovery: [], Strain: [], HRV: [], Sleep: [], allRecords: [] };
+          map[record.player] = { player: record.player, sessions: 0, Recovery: [], Strain: [], HRV: [], Sleep: [], windowRecords: [] };
         }
         map[record.player].sessions++;
-        map[record.player].allRecords.push(record);
+        map[record.player].windowRecords.push(record);
+        if (record.Recovery) map[record.player].Recovery.push(record.Recovery as number);
+        if (record.Strain) map[record.player].Strain.push(record.Strain as number);
+        if (record.HRV) map[record.player].HRV.push(record.HRV as number);
+        if (record['Sleep Performance']) map[record.player].Sleep.push(record['Sleep Performance'] as number);
+      });
 
-        if (record.Recovery) map[record.player].Recovery.push(record.Recovery);
-        if (record.Strain) map[record.player].Strain.push(record.Strain);
-        if (record.HRV) map[record.player].HRV.push(record.HRV);
-        if (record['Sleep Performance']) map[record.player].Sleep.push(record['Sleep Performance']);
+      // HRV dots use full history per player (not just the report window)
+      const fullHistoryByPlayer: Record<string, WhoopRecord[]> = {};
+      fullHistory.forEach((record) => {
+        if (!fullHistoryByPlayer[record.player]) fullHistoryByPlayer[record.player] = [];
+        fullHistoryByPlayer[record.player].push(record);
       });
 
       const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
@@ -319,7 +329,7 @@ export default function WhoopDashboard() {
           player: p.player,
           sessions: p.sessions,
           daysWithData: new Set(
-            p.allRecords
+            p.windowRecords
               .filter((r) =>
                 (r.Recovery != null && (r.Recovery as number) > 0) ||
                 (r.Strain != null && (r.Strain as number) > 0) ||
@@ -332,22 +342,27 @@ export default function WhoopDashboard() {
           avgStrain: avg(p.Strain),
           avgHRV: avg(p.HRV),
           avgSleep: avg(p.Sleep),
-          hrvDots: computeHrvDots(p.allRecords),
+          // Always pass full history so dots span 5 real weeks
+          hrvDots: computeHrvDots(fullHistoryByPlayer[p.player] ?? p.windowRecords),
         }))
         .sort((a, b) => (b.avgRecovery ?? 0) - (a.avgRecovery ?? 0));
     },
     [computeHrvDots]
   );
 
-  const playerComparison = useMemo(() => buildPlayerStats(filteredWhoopData), [filteredWhoopData, buildPlayerStats]);
+  const playerComparison = useMemo(
+    () => buildPlayerStats(filteredWhoopData, whoopData),
+    [filteredWhoopData, whoopData, buildPlayerStats]
+  );
 
-  /** Report data: slice whoopData to last N days (ignores selectedPlayer/timeRange filters) */
+  /** Report data: anchor cutoff to the latest date in the CSV, not today */
   const reportData = useMemo(() => {
+    if (whoopData.length === 0) return [];
     const days = parseInt(reportRange);
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - days);
+    const latestDate = new Date(whoopData[whoopData.length - 1].Date).getTime();
+    const cutoff = new Date(latestDate - days * 24 * 60 * 60 * 1000);
     const sliced = whoopData.filter((d) => new Date(d.Date) >= cutoff);
-    return buildPlayerStats(sliced);
+    return buildPlayerStats(sliced, whoopData);
   }, [whoopData, reportRange, buildPlayerStats]);
 
   // ── Player card helper ─────────────────────────────────────────────────
