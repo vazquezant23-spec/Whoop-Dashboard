@@ -48,6 +48,7 @@ interface StatSummary {
 interface PlayerStats {
   player: string;
   sessions: number;
+  daysWithData: number;
   avgRecovery: number | null;
   avgStrain: number | null;
   avgHRV: number | null;
@@ -291,6 +292,7 @@ export default function WhoopDashboard() {
         }
         map[record.player].sessions++;
         map[record.player].allRecords.push(record);
+
         if (record.Recovery) map[record.player].Recovery.push(record.Recovery);
         if (record.Strain) map[record.player].Strain.push(record.Strain);
         if (record.HRV) map[record.player].HRV.push(record.HRV);
@@ -303,6 +305,7 @@ export default function WhoopDashboard() {
         .map((p) => ({
           player: p.player,
           sessions: p.sessions,
+          daysWithData: new Set(p.allRecords.map((r) => r.Date)).size,
           avgRecovery: avg(p.Recovery),
           avgStrain: avg(p.Strain),
           avgHRV: avg(p.HRV),
@@ -330,7 +333,7 @@ export default function WhoopDashboard() {
     setCardView((prev) => ({ ...prev, [player]: prev[player] === 'hrv' ? 'recovery' : 'hrv' }));
   };
 
-  const PlayerCard = ({ p }: { p: PlayerStats }) => {
+  const PlayerCard = ({ p, reportDays }: { p: PlayerStats; reportDays: number }) => {
     const view = cardView[p.player] ?? 'recovery';
     const rc = recoveryColor(p.avgRecovery);
     const sc = sleepColor(p.avgSleep);
@@ -340,7 +343,12 @@ export default function WhoopDashboard() {
       <div className={`bg-white rounded-xl shadow-sm border-l-4 ${border} p-5`}>
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
-          <h4 className="font-semibold text-gray-800 truncate pr-2">{p.player}</h4>
+          <div>
+            <h4 className="font-semibold text-gray-800 truncate">{p.player}</h4>
+            <span className="text-xs text-gray-400">
+              {p.daysWithData}/{reportDays} days
+            </span>
+          </div>
           <div className="flex items-center gap-2 shrink-0">
             {/* HRV dots */}
             <div className="flex gap-1">
@@ -382,7 +390,7 @@ export default function WhoopDashboard() {
                 </span>
               </div>
             </div>
-            {/* Strain + sessions */}
+            {/* Strain + HRV */}
             <div className="grid grid-cols-2 gap-2 text-center">
               <div className="bg-gray-50 rounded-lg py-2">
                 <p className="text-xs text-gray-500">Strain</p>
@@ -391,8 +399,10 @@ export default function WhoopDashboard() {
                 </p>
               </div>
               <div className="bg-gray-50 rounded-lg py-2">
-                <p className="text-xs text-gray-500">Sessions</p>
-                <p className="text-sm font-bold text-gray-700">{p.sessions}</p>
+                <p className="text-xs text-gray-500">HRV</p>
+                <p className="text-sm font-bold text-blue-600">
+                  {p.avgHRV !== null ? p.avgHRV.toFixed(0) : '--'}
+                </p>
               </div>
             </div>
           </>
@@ -426,8 +436,10 @@ export default function WhoopDashboard() {
                 </p>
               </div>
               <div className="bg-gray-50 rounded-lg py-2">
-                <p className="text-xs text-gray-500">Sessions</p>
-                <p className="text-sm font-bold text-gray-700">{p.sessions}</p>
+                <p className="text-xs text-gray-500">Sleep</p>
+                <p className={`text-sm font-bold ${sleepColor(p.avgSleep).text}`}>
+                  {p.avgSleep !== null ? p.avgSleep.toFixed(0) + '%' : '--'}
+                </p>
               </div>
             </div>
           </>
@@ -699,7 +711,7 @@ export default function WhoopDashboard() {
                 <p className="text-xs text-gray-400">Dots = HRV trend (last 5 days vs prior week)</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {reportData.map((p) => <PlayerCard key={p.player} p={p} />)}
+                {reportData.map((p) => <PlayerCard key={p.player} p={p} reportDays={parseInt(reportRange)} />)}
               </div>
             </div>
 
