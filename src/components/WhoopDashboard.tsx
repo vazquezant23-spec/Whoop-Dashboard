@@ -305,7 +305,16 @@ export default function WhoopDashboard() {
         .map((p) => ({
           player: p.player,
           sessions: p.sessions,
-          daysWithData: new Set(p.allRecords.map((r) => r.Date)).size,
+          daysWithData: new Set(
+            p.allRecords
+              .filter((r) =>
+                (r.Recovery != null && (r.Recovery as number) > 0) ||
+                (r.Strain != null && (r.Strain as number) > 0) ||
+                (r.HRV != null && (r.HRV as number) > 0) ||
+                (r['Sleep Performance'] != null && (r['Sleep Performance'] as number) > 0)
+              )
+              .map((r) => r.Date)
+          ).size,
           avgRecovery: avg(p.Recovery),
           avgStrain: avg(p.Strain),
           avgHRV: avg(p.HRV),
