@@ -243,32 +243,45 @@ export default function WhoopDashboard() {
   }, [filteredWhoopData]);
 
   /** Compute HRV trend dots for a player.
-   *  For each of the last 5 days with HRV data, compare that day's HRV
-   *  to the player's average HRV from the 7 days before that day.
-   *  up = >2ms above prior-week avg, down = >2ms below, same = within 2ms.
+   *  Each dot = one of the last 5 calendar weeks (most recent = rightmost).
+   *  The dot color reflects whether that week's avg HRV rose, stayed flat,
+   *  or dropped vs the immediately preceding week's avg.
+   *  up = >2ms above prior week avg, down = >2ms below, same = within ±2ms.
+   *  'none' = no HRV data in that week.
    */
   const computeHrvDots = useCallback(
     (playerRecords: WhoopRecord[]): Array<'up' | 'same' | 'down' | 'none'> => {
       const withHRV = playerRecords
-        .filter((r) => r.HRV !== undefined && !isNaN(Number(r.HRV)))
+        .filter((r) => r.HRV !== undefined && (r.HRV as number) > 0 && !isNaN(Number(r.HRV)))
         .sort((a, b) => new Date(a.Date).getTime() - new Date(b.Date).getTime());
 
       if (withHRV.length === 0) return Array(5).fill('none');
 
-      const last5 = withHRV.slice(-5);
-      // pad to 5 if fewer
-      while (last5.length < 5) last5.unshift(undefined as unknown as WhoopRecord);
+      // Anchor to the most recent date in the data
+      const latestDate = new Date(withHRV[withHRV.length - 1].Date).getTime();
+      const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
-      return last5.map((rec) => {
-        if (!rec) return 'none';
-        const recDate = new Date(rec.Date).getTime();
-        const priorWeek = withHRV.filter((r) => {
+      // Build weekly avg HRV for the last 6 weeks (need 6 to compare 5 transitions)
+      const weekAvgs: Array<number | null> = [];
+      for (let w = 5; w >= 0; w--) {
+        const weekEnd = latestDate - w * MS_PER_WEEK;
+        const weekStart = weekEnd - MS_PER_WEEK;
+        const records = withHRV.filter((r) => {
           const t = new Date(r.Date).getTime();
-          return t < recDate && t >= recDate - 7 * 86400000;
+          return t > weekStart && t <= weekEnd;
         });
-        if (priorWeek.length === 0) return 'none';
-        const priorAvg = priorWeek.reduce((s, r) => s + (r.HRV as number), 0) / priorWeek.length;
-        const diff = (rec.HRV as number) - priorAvg;
+        weekAvgs.push(
+          records.length > 0
+            ? records.reduce((s, r) => s + (r.HRV as number), 0) / records.length
+            : null
+        );
+      }
+
+      // Dots = weeks 1–5 (index 1–5), compared to the preceding week (index 0–4)
+      return weekAvgs.slice(1).map((thisWeek, i) => {
+        const prevWeek = weekAvgs[i];
+        if (thisWeek === null || prevWeek === null) return 'none';
+        const diff = thisWeek - prevWeek;
         if (diff > 2) return 'up';
         if (diff < -2) return 'down';
         return 'same';
@@ -358,16 +371,23 @@ export default function WhoopDashboard() {
               {p.daysWithData}/{reportDays} days
             </span>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {/* HRV dots */}
-            <div className="flex gap-1">
-              {p.hrvDots.map((dir, i) => (
-                <span
-                  key={i}
-                  title={dir === 'none' ? 'No data' : dir}
-                  className={`w-2.5 h-2.5 rounded-full ${dotColor(dir)}`}
-                />
-              ))}
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            {/* HRV weekly trend dots */}
+            <div className="flex flex-col items-end gap-0.5">
+              <span className="text-[10px] text-gray-400 leading-none">HRV wk trend</span>
+              <div className="flex gap-1">
+                {p.hrvDots.map((dir, i) => (
+                  <span
+                    key={i}
+                    title={
+                      dir === 'none'
+                        ? `Week ${i + 1}: No data`
+                        : `Week ${i + 1}: ${dir === 'up' ? 'Rising' : dir === 'down' ? 'Declining' : 'Flat'} vs prior week`
+                    }
+                    className={`w-2.5 h-2.5 rounded-full ${dotColor(dir)}`}
+                  />
+                ))}
+              </div>
             </div>
             {/* Toggle button */}
             <button
@@ -427,14 +447,21 @@ export default function WhoopDashboard() {
               </div>
             </div>
             <div className="mb-2">
-              <p className="text-xs font-medium text-gray-500 mb-1">Last 5 Days Trend</p>
-              <div className="flex items-center gap-2">
+              <p className="text-xs font-medium text-gray-500 mb-2">Weekly HRV Trend (last 5 weeks)</p>
+              <div className="flex items-end justify-between">
                 {p.hrvDots.map((dir, i) => (
                   <div key={i} className="flex flex-col items-center gap-1">
-                    <span className={`w-4 h-4 rounded-full ${dotColor(dir)}`} />
-                    <span className="text-xs text-gray-400">D{i + 1}</span>
+                    <span className={`w-5 h-5 rounded-full ${dotColor(dir)}`} />
+                    <span className="text-[10px] text-gray-400">W{i + 1}</span>
+                    <span className="text-[9px] text-gray-300 leading-none">
+                      {dir === 'up' ? '↑' : dir === 'down' ? '↓' : dir === 'same' ? '→' : '–'}
+                    </span>
                   </div>
                 ))}
+              </div>
+              <div className="flex justify-between mt-1 px-0.5">
+                <span className="text-[9px] text-gray-300">oldest</span>
+                <span className="text-[9px] text-gray-300">most recent</span>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 text-center mt-3">
@@ -717,7 +744,7 @@ export default function WhoopDashboard() {
                 <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
                   Individual Cards — Last {reportRange} Days
                 </h3>
-                <p className="text-xs text-gray-400">Dots = HRV trend (last 5 days vs prior week)</p>
+                <p className="text-xs text-gray-400">Dots = weekly avg HRV trend · W1 (oldest) → W5 (most recent)</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {reportData.map((p) => <PlayerCard key={p.player} p={p} reportDays={parseInt(reportRange)} />)}
