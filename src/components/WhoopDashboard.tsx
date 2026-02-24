@@ -361,7 +361,7 @@ export default function WhoopDashboard() {
     const days = parseInt(reportRange);
     const latestDate = new Date(whoopData[whoopData.length - 1].Date).getTime();
     const cutoff = new Date(latestDate - days * 24 * 60 * 60 * 1000);
-    const sliced = whoopData.filter((d) => new Date(d.Date) >= cutoff);
+    const sliced = whoopData.filter((d) => new Date(d.Date) > cutoff);
     return buildPlayerStats(sliced, whoopData);
   }, [whoopData, reportRange, buildPlayerStats]);
 
