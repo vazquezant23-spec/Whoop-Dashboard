@@ -370,7 +370,10 @@ export default function WhoopDashboard() {
       const t = new Date((d.Date as string).trim().slice(0, 10)).getTime();
       return !isNaN(t) && t > cutoff;
     });
-    return buildPlayerStats(sliced, whoopData);
+    return buildPlayerStats(sliced, whoopData).map((p) => ({
+      ...p,
+      daysWithData: Math.min(days, p.daysWithData),
+    }));
   }, [whoopData, reportRange, buildPlayerStats]);
 
   // ── Player card helper ─────────────────────────────────────────────────
