@@ -253,12 +253,12 @@ export default function WhoopDashboard() {
     (playerRecords: WhoopRecord[]): Array<'up' | 'same' | 'down' | 'none'> => {
       const withHRV = playerRecords
         .filter((r) => r.HRV !== undefined && (r.HRV as number) > 0 && !isNaN(Number(r.HRV)))
-        .sort((a, b) => new Date(a.Date).getTime() - new Date(b.Date).getTime());
+        .sort((a, b) => new Date((a.Date as string).slice(0, 10)).getTime() - new Date((b.Date as string).slice(0, 10)).getTime());
 
       if (withHRV.length === 0) return Array(5).fill('none');
 
       // Anchor to the most recent date in the data
-      const latestDate = new Date(withHRV[withHRV.length - 1].Date).getTime();
+      const latestDate = new Date((withHRV[withHRV.length - 1].Date as string).slice(0, 10)).getTime();
       const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
       // Build weekly avg HRV for the last 6 weeks (need 6 to compare 5 transitions)
@@ -267,7 +267,7 @@ export default function WhoopDashboard() {
         const weekEnd = latestDate - w * MS_PER_WEEK;
         const weekStart = weekEnd - MS_PER_WEEK;
         const records = withHRV.filter((r) => {
-          const t = new Date(r.Date).getTime();
+          const t = new Date((r.Date as string).slice(0, 10)).getTime();
           return t > weekStart && t <= weekEnd;
         });
         weekAvgs.push(
@@ -336,7 +336,7 @@ export default function WhoopDashboard() {
                 (r.HRV != null && (r.HRV as number) > 0) ||
                 (r['Sleep Performance'] != null && (r['Sleep Performance'] as number) > 0)
               )
-              .map((r) => r.Date)
+              .map((r) => (r.Date as string).slice(0, 10))
           ).size,
           avgRecovery: avg(p.Recovery),
           avgStrain: avg(p.Strain),
@@ -359,9 +359,9 @@ export default function WhoopDashboard() {
   const reportData = useMemo(() => {
     if (whoopData.length === 0) return [];
     const days = parseInt(reportRange);
-    const latestDate = new Date(whoopData[whoopData.length - 1].Date).getTime();
+    const latestDate = new Date((whoopData[whoopData.length - 1].Date as string).slice(0, 10)).getTime();
     const cutoff = new Date(latestDate - days * 24 * 60 * 60 * 1000);
-    const sliced = whoopData.filter((d) => new Date(d.Date) > cutoff);
+    const sliced = whoopData.filter((d) => new Date((d.Date as string).slice(0, 10)) > cutoff);
     return buildPlayerStats(sliced, whoopData);
   }, [whoopData, reportRange, buildPlayerStats]);
 
