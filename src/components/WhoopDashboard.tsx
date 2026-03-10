@@ -175,7 +175,7 @@ export default function WhoopDashboard() {
       }
 
       if (processedData.length === 0) { alert('No valid data found'); return; }
-      setWhoopData(processedData.sort((a, b) => new Date(a.Date).getTime() - new Date(b.Date).getTime()));
+      setWhoopData(processedData.sort((a, b) => new Date((a.Date as string).trim()).getTime() - new Date((b.Date as string).trim()).getTime()));
       setCurrentPage('dashboard');
     } catch (error) {
       alert('Upload error: ' + (error as Error).message);
@@ -253,7 +253,7 @@ export default function WhoopDashboard() {
     (playerRecords: WhoopRecord[]): Array<'up' | 'same' | 'down' | 'none'> => {
       const withHRV = playerRecords
         .filter((r) => r.HRV !== undefined && (r.HRV as number) > 0 && !isNaN(Number(r.HRV)))
-        .sort((a, b) => new Date((a.Date as string).slice(0, 10)).getTime() - new Date((b.Date as string).slice(0, 10)).getTime());
+        .sort((a, b) => new Date((a.Date as string).trim().slice(0, 10)).getTime() - new Date((b.Date as string).trim().slice(0, 10)).getTime());
 
       if (withHRV.length === 0) return Array(5).fill('none');
 
@@ -267,7 +267,7 @@ export default function WhoopDashboard() {
         const weekEnd = latestDate - w * MS_PER_WEEK;
         const weekStart = weekEnd - MS_PER_WEEK;
         const records = withHRV.filter((r) => {
-          const t = new Date((r.Date as string).slice(0, 10)).getTime();
+          const t = new Date((r.Date as string).trim().slice(0, 10)).getTime();
           return t > weekStart && t <= weekEnd;
         });
         weekAvgs.push(
@@ -336,7 +336,7 @@ export default function WhoopDashboard() {
                 (r.HRV != null && (r.HRV as number) > 0) ||
                 (r['Sleep Performance'] != null && (r['Sleep Performance'] as number) > 0)
               )
-              .map((r) => (r.Date as string).slice(0, 10))
+              .map((r) => (r.Date as string).trim().slice(0, 10))
           ).size,
           avgRecovery: avg(p.Recovery),
           avgStrain: avg(p.Strain),
@@ -359,9 +359,17 @@ export default function WhoopDashboard() {
   const reportData = useMemo(() => {
     if (whoopData.length === 0) return [];
     const days = parseInt(reportRange);
-    const latestDate = new Date((whoopData[whoopData.length - 1].Date as string).slice(0, 10)).getTime();
-    const cutoff = new Date(latestDate - days * 24 * 60 * 60 * 1000);
-    const sliced = whoopData.filter((d) => new Date((d.Date as string).slice(0, 10)) > cutoff);
+    // Use Math.max across all records so sort order doesn't matter
+    const latestDate = Math.max(
+      ...whoopData
+        .map((d) => new Date((d.Date as string).trim().slice(0, 10)).getTime())
+        .filter((t) => !isNaN(t))
+    );
+    const cutoff = latestDate - days * 24 * 60 * 60 * 1000;
+    const sliced = whoopData.filter((d) => {
+      const t = new Date((d.Date as string).trim().slice(0, 10)).getTime();
+      return !isNaN(t) && t > cutoff;
+    });
     return buildPlayerStats(sliced, whoopData);
   }, [whoopData, reportRange, buildPlayerStats]);
 
