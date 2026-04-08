@@ -250,15 +250,16 @@ export default function WhoopDashboard() {
    *  'none' = no HRV data in that week.
    */
   const computeHrvDots = useCallback(
-    (playerRecords: WhoopRecord[]): Array<'up' | 'same' | 'down' | 'none'> => {
+    (playerRecords: WhoopRecord[], anchorDate?: number): Array<'up' | 'same' | 'down' | 'none'> => {
       const withHRV = playerRecords
         .filter((r) => r.HRV !== undefined && (r.HRV as number) > 0 && !isNaN(Number(r.HRV)))
         .sort((a, b) => new Date((a.Date as string).trim().slice(0, 10)).getTime() - new Date((b.Date as string).trim().slice(0, 10)).getTime());
 
       if (withHRV.length === 0) return Array(5).fill('none');
 
-      // Anchor to the most recent date in the data
-      const latestDate = new Date((withHRV[withHRV.length - 1].Date as string).slice(0, 10)).getTime();
+      // Anchor to the CSV's global latest date so the rightmost dot always
+      // represents the current week. Falls back to the player's own last record.
+      const latestDate = anchorDate ?? new Date((withHRV[withHRV.length - 1].Date as string).trim().slice(0, 10)).getTime();
       const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
       // Build weekly avg HRV for the last 6 weeks (need 6 to compare 5 transitions)
@@ -322,6 +323,13 @@ export default function WhoopDashboard() {
         fullHistoryByPlayer[record.player].push(record);
       });
 
+      // Global anchor so all players' dot windows end at the same "current" week
+      const globalLatestDate = Math.max(
+        ...fullHistory
+          .map((d) => new Date((d.Date as string).trim().slice(0, 10)).getTime())
+          .filter((t) => !isNaN(t))
+      );
+
       const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
 
       return Object.values(map)
@@ -344,8 +352,8 @@ export default function WhoopDashboard() {
             avgStrain: avg(p.Strain),
             avgHRV: avg(p.HRV),
             avgSleep: avg(p.Sleep),
-            // Always show HRV trend dots using full history (5-week rolling window)
-            hrvDots: computeHrvDots(fullHistoryByPlayer[p.player] ?? p.windowRecords),
+            // Always show HRV trend dots using full history anchored to global latest date
+            hrvDots: computeHrvDots(fullHistoryByPlayer[p.player] ?? p.windowRecords, globalLatestDate),
           };
         })
         .sort((a, b) => (b.avgRecovery ?? 0) - (a.avgRecovery ?? 0));
