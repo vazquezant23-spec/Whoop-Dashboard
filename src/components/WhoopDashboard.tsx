@@ -325,10 +325,8 @@ export default function WhoopDashboard() {
       const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
 
       return Object.values(map)
-        .map((p) => ({
-          player: p.player,
-          sessions: p.sessions,
-          daysWithData: new Set(
+        .map((p) => {
+          const daysWithData = new Set(
             p.windowRecords
               .filter((r) =>
                 (r.Recovery != null && (r.Recovery as number) > 0) ||
@@ -337,14 +335,21 @@ export default function WhoopDashboard() {
                 (r['Sleep Performance'] != null && (r['Sleep Performance'] as number) > 0)
               )
               .map((r) => (r.Date as string).trim().slice(0, 10))
-          ).size,
-          avgRecovery: avg(p.Recovery),
-          avgStrain: avg(p.Strain),
-          avgHRV: avg(p.HRV),
-          avgSleep: avg(p.Sleep),
-          // Always pass full history so dots span 5 real weeks
-          hrvDots: computeHrvDots(fullHistoryByPlayer[p.player] ?? p.windowRecords),
-        }))
+          ).size;
+          return {
+            player: p.player,
+            sessions: p.sessions,
+            daysWithData,
+            avgRecovery: avg(p.Recovery),
+            avgStrain: avg(p.Strain),
+            avgHRV: avg(p.HRV),
+            avgSleep: avg(p.Sleep),
+            // Only show HRV trend dots if the player has data in the current window
+            hrvDots: daysWithData > 0
+              ? computeHrvDots(fullHistoryByPlayer[p.player] ?? p.windowRecords)
+              : (Array(5).fill('none') as Array<'up' | 'same' | 'down' | 'none'>),
+          };
+        })
         .sort((a, b) => (b.avgRecovery ?? 0) - (a.avgRecovery ?? 0));
     },
     [computeHrvDots]
