@@ -344,10 +344,8 @@ export default function WhoopDashboard() {
             avgStrain: avg(p.Strain),
             avgHRV: avg(p.HRV),
             avgSleep: avg(p.Sleep),
-            // Only show HRV trend dots if the player has data in the current window
-            hrvDots: daysWithData > 0
-              ? computeHrvDots(fullHistoryByPlayer[p.player] ?? p.windowRecords)
-              : (Array(5).fill('none') as Array<'up' | 'same' | 'down' | 'none'>),
+            // Always show HRV trend dots using full history (5-week rolling window)
+            hrvDots: computeHrvDots(fullHistoryByPlayer[p.player] ?? p.windowRecords),
           };
         })
         .sort((a, b) => (b.avgRecovery ?? 0) - (a.avgRecovery ?? 0));
